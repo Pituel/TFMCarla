@@ -4,9 +4,10 @@ from networks.off_policy.ddqn.dueling_dqn import DuelingDQnetwork
 from networks.off_policy.replay_buffer import ReplayBuffer
 from parameters import *
 from copy import deepcopy
-from datetime import datetime
+import time
 import pickle
 import matplotlib.pyplot as plt
+from codecarbon import EmissionsTracker
 
 
 
@@ -44,11 +45,11 @@ class DQNAgent(object):
 
     def initialize(self):
         self.cumulative_score = 0
-        self.scores = list()
-        self.mean_scores = list()
-        self.training_loss = list()
-        self.epsilon_ev = list()
-        self.update_loss = list()
+        self.scores = []
+        self.mean_scores = []
+        self.training_loss = []
+        self.epsilon_ev = []
+        self.update_loss = []
         self.observation = self.env.reset()
         self.observation = self.encode.process(self.observation)
         self.step_count = 0
@@ -81,12 +82,11 @@ class DQNAgent(object):
         rewards_vals = torch.FloatTensor(rewards).to(device=self.device).reshape(-1,1)
         actions_vals = torch.LongTensor(np.array(actions)).reshape(-1,1).to(
             device=self.device)
-        #dones_t = torch.BoolTensor(dones).to(device=self.device)
-        dones_t = torch.ByteTensor(dones).to(device=self.device)
+        dones_t = torch.BoolTensor(dones).to(device=self.device)
+        #dones_t = torch.ByteTensor(dones).to(device=self.device)
 
         # Get Q-values from main network
         qvals = torch.gather(self.q_network.get_qvals(states), 1, actions_vals)
-            
 
         #DQN update
         next_actions = torch.max(self.q_network.get_qvals(next_states), dim=-1)[1]
@@ -129,26 +129,35 @@ class DQNAgent(object):
 
 
     def train(self):
+        start = time.time()
+        tracker = EmissionsTracker()
+        tracker.start()
         # Fill the buffer with random experience.
         print("Filling replay buffer...")
         while self.replay_buffer.burn_in_capacity() < 1:
             self.take_step(mode='explore')
 
         episode = 0
+
+        # self.load_model()
+        # with open(f"checkpoints/DDQN/{self.town}/checkpoint_ddqn.pickle", 'rb') as f:
+        #     data = pickle.load(f)
+        #     episode = data['epoch']
+        #     self.cumulative_score = data['cumulative_score']
+        #     self.epsilon = data['epsilon']
+        
         training = True
         print("Training...")
         while training:
             self.current_ep_reward = 0
-            self.total_reward = 0
             print('Starting Episode: ', episode, ', Epsilon Now:  {:.3f}'.format(self.epsilon), ', ', end="")
 
             epdone = False
             while epdone == False:
                 epdone = self.take_step(mode='train')
-                
                 # Update the main network
-                #if self.step_count % UPDATE_FREQ == 0:
-                self.update()
+                if self.step_count % UPDATE_FREQ == 0:
+                    self.update()
 
                 # Sincornize main and target networks
                 if self.step_count % REPLACE_NETWORK == 0:
@@ -164,9 +173,9 @@ class DQNAgent(object):
                     self.training_loss.append(np.mean(self.update_loss))
                     self.epsilon_ev.append(self.epsilon)
                     
-                    self.update_loss = list()
+                    self.update_loss = []
 
-                    print('Reward:  {:.2f}'.format(self.current_ep_reward), ', Average Reward:  {:.2f}'.format(self.cumulative_score))
+                    print('Reward:  {:.2f}'.format(self.current_ep_reward), ', Average Reward:  {:.2f}'.format(self.cumulative_score))#, ', Training Loss:  {:.2f}'.format(self.update_loss))
 
                     if episode >= 10 and episode % 10 == 0:
                         self.save_model()                      
@@ -174,11 +183,23 @@ class DQNAgent(object):
                         data_obj = {'cumulative_score': self.cumulative_score, 'epsilon': self.epsilon,'epoch': episode}
                         with open(f"checkpoints/DDQN/{self.town}/checkpoint_ddqn.pickle", 'wb') as handle:
                             pickle.dump(data_obj, handle)
+
+                    if episode >= 10 and episode % 50 == 0:
+                        
+                        plt.close('all')
+                        self.plot_rewards(self.scores, self.mean_scores)
+                        self.plot_loss(self.training_loss)
+                        self.plot_epsilon(self.epsilon_ev)
                     
-                    if episode >= EPISODES:
+                    if episode >= EPISODES or self.cumulative_score > 800:
+                        end = time.time()
+                        print("Tiempo de entrenamiento: {} minutos".format(round((end-start)/60,2)))
+                        emissions: float = tracker.stop()
+                        print(emissions)
                         training = False
-                            
-                        self.plot_rewards(self.scores, self.cumulative_score)
+                        
+                        plt.close('all')
+                        self.plot_rewards(self.scores, self.mean_scores)
                         self.plot_loss(self.training_loss)
                         self.plot_epsilon(self.epsilon_ev)
                             
@@ -186,6 +207,22 @@ class DQNAgent(object):
                         break
 
                     self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_end)
+
+    def test(self):
+        self.load_model()
+        total_reward = 0
+        while True:
+            action = self.q_network.get_action(self.observation, epsilon=0.0)
+            new_observation, reward, done, info = self.env.step(action)
+            new_observation = self.encode.process(new_observation)
+
+            self.observation = new_observation
+
+            total_reward += reward
+
+            if done:
+                print('Reward: {:.2f}'.format(total_reward))
+                break
         
 
     def plot_rewards(self, tr_rewards, mean_tr_rewards):

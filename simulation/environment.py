@@ -5,17 +5,18 @@ import pygame
 from simulation.connection import carla
 from simulation.sensors import CameraSensor, CameraSensorEnv, CollisionSensor
 from simulation.settings import *
+from parameters import MODE
 
-# import sys
-# sys.path.insert(0,'/Users/Pituel/Documents/Master/TFM/Carla/CARLA/WindowsNoEditor/PythonAPI/carla/agents/navigation')
-# sys.path.insert(0,'/Users/Pituel/Documents/Master/TFM/Carla/CARLA/WindowsNoEditor/PythonAPI/carla/agents')
-# sys.path.insert(0,'/Users/Pituel/Documents/Master/TFM/Carla/CARLA/WindowsNoEditor/PythonAPI/carla')
-# from global_route_planner import GlobalRoutePlanner
+import sys
+sys.path.insert(0,'/Users/Pituel/Documents/Master/TFM/Carla/CARLA_Latest/WindowsNoEditor/PythonAPI/carla/agents/navigation')
+sys.path.insert(0,'/Users/Pituel/Documents/Master/TFM/Carla/CARLA_Latest/WindowsNoEditor/PythonAPI/carla/agents')
+sys.path.insert(0,'/Users/Pituel/Documents/Master/TFM/Carla/CARLA_Latest/WindowsNoEditor/PythonAPI/carla')
+from global_route_planner import GlobalRoutePlanner
 # from agents.navigation.global_route_planner_dao import GlobalRoutePlannerDAO
 
 class CarlaEnvironment():
 
-    def __init__(self, client, world, town, checkpoint_frequency=100) -> None:
+    def __init__(self, client, world, town, checkpoint_frequency=300) -> None:
 
 
         self.client = client
@@ -37,13 +38,12 @@ class CarlaEnvironment():
         self.camera_obj = None
         self.env_camera_obj = None
         self.collision_obj = None
-        self.lane_invasion_obj = None
 
         # Two very important lists for keeping track of our actors and their observations.
-        self.sensor_list = list()
-        self.actor_list = list()
-        self.walker_list = list()
-        self.create_pedestrians()
+        self.sensor_list = []
+        self.actor_list = []
+        #self.walker_list = list()
+        #self.create_pedestrians()
 
 
 
@@ -62,16 +62,9 @@ class CarlaEnvironment():
 
             # Blueprint of our main vehicle
             vehicle_bp = self.get_vehicle(CAR_NAME)
-
-            if self.town == "Town07":
-                transform = self.map.get_spawn_points()[38] #Town7  is 38 
-                self.total_distance = 750
-            elif self.town == "Town02":
-                transform = self.map.get_spawn_points()[50] #Town2 is 1
-                self.total_distance = 150
-            else:
-                transform = random.choice(self.map.get_spawn_points())
-                self.total_distance = 250
+            transform = self.map.get_spawn_points()[50]
+            #transform = self.map.get_spawn_points()[47]
+            self.total_distance = 134
 
             self.vehicle = self.world.try_spawn_actor(vehicle_bp, transform)
             self.actor_list.append(self.vehicle)
@@ -114,41 +107,29 @@ class CarlaEnvironment():
 
 
             if self.fresh_start:
-                self.current_waypoint_index = 0
-                # Waypoint nearby angle and distance from it
-                self.route_waypoints = list()
-                self.waypoint = self.map.get_waypoint(self.vehicle.get_location(), project_to_road=True, lane_type=(carla.LaneType.Driving))
-                current_waypoint = self.waypoint
-                self.route_waypoints.append(current_waypoint)
-                for x in range(self.total_distance):
-                    if self.town == "Town07":
-                        if x < 650:
-                            next_waypoint = current_waypoint.next(1.0)[0]
-                        else:
-                            next_waypoint = current_waypoint.next(1.0)[-1]
-                    elif self.town == "Town02":
-                        if x < 650:
-                            next_waypoint = current_waypoint.next(1.0)[-1]
-                        else:
-                            next_waypoint = current_waypoint.next(1.0)[0]
-                    else:
-                        next_waypoint = current_waypoint.next(1.0)[0]
-                    self.route_waypoints.append(next_waypoint)
-                    current_waypoint = next_waypoint
-
                 # self.current_waypoint_index = 0
-                # sampling_resolution = 1
-                # dao = GlobalRoutePlannerDAO(self.map, sampling_resolution)
-                # grp = GlobalRoutePlanner(dao)
+                # # Waypoint nearby angle and distance from it
                 # self.route_waypoints = list()
-                # spawn_points = self.world.get_map().get_spawn_points()
-                # a = carla.Location(spawn_points[47].location)
-                # b = carla.Location(spawn_points[60].location)
-                # w2 = grp.trace_route(a, b) 
+                # self.waypoint = self.map.get_waypoint(self.vehicle.get_location(), project_to_road=True, lane_type=(carla.LaneType.Driving))
+                # current_waypoint = self.waypoint
+                # self.route_waypoints.append(current_waypoint)
+                # for x in range(self.total_distance):
+                #     next_waypoint = current_waypoint.next(1.0)[-1]
+                #     self.route_waypoints.append(next_waypoint)
+                #     current_waypoint = next_waypoint
 
-                # for v in w2:
-                #     vp = self.map.get_waypoint(v[0].transform.location, project_to_road=True, lane_type=(carla.LaneType.Driving))
-                #     self.route_waypoints.append(vp)
+                self.current_waypoint_index = 0
+                sampling_resolution = 0.5
+                grp = GlobalRoutePlanner(self.map, sampling_resolution)
+                self.route_waypoints = []
+                spawn_points = self.world.get_map().get_spawn_points()
+                a = carla.Location(spawn_points[50].location)
+                b = carla.Location(spawn_points[60].location)
+                w2 = grp.trace_route(a, b) 
+
+                for v in w2:
+                    vp = self.map.get_waypoint(v[0].transform.location, project_to_road=True, lane_type=(carla.LaneType.Driving))
+                    self.route_waypoints.append(vp)
 
             else:
                 # Teleport vehicle to last checkpoint
@@ -164,12 +145,15 @@ class CarlaEnvironment():
             self.collision_history.clear()
 
             self.episode_start_time = time.time()
-            return [self.image_obs, self.navigation_obs]
+            if MODE == 1:
+                return [self.image_obs, self.navigation_obs]
+            else:
+                return self.image_obs
 
         except:
             self.client.apply_batch([carla.command.DestroyActor(x) for x in self.sensor_list])
             self.client.apply_batch([carla.command.DestroyActor(x) for x in self.actor_list])
-            self.client.apply_batch([carla.command.DestroyActor(x) for x in self.walker_list])
+            #self.client.apply_batch([carla.command.DestroyActor(x) for x in self.walker_list])
             self.sensor_list.clear()
             self.actor_list.clear()
             self.remove_sensors()
@@ -202,10 +186,10 @@ class CarlaEnvironment():
             self.throttle = 1.0
             
             # Traffic Light state
-            if self.vehicle.is_at_traffic_light():
-                traffic_light = self.vehicle.get_traffic_light()
-                if traffic_light.get_state() == carla.TrafficLightState.Red:
-                    traffic_light.set_state(carla.TrafficLightState.Green)
+            # if self.vehicle.is_at_traffic_light():
+            #     traffic_light = self.vehicle.get_traffic_light()
+            #     if traffic_light.get_state() == carla.TrafficLightState.Red:
+            #         traffic_light.set_state(carla.TrafficLightState.Green)
 
             self.collision_history = self.collision_obj.collision_data            
 
@@ -251,10 +235,10 @@ class CarlaEnvironment():
 
             if len(self.collision_history) != 0:
                 done = True
-                reward = -10
+                reward = -30
             elif self.distance_from_center > self.max_distance_from_center:
                 done = True
-                reward = -10
+                reward = -30
             elif self.episode_start_time + 10 < time.time() and self.velocity < 1.0:
                 reward = -10
                 done = True
@@ -264,7 +248,7 @@ class CarlaEnvironment():
 
             # Interpolated from 1 when centered to 0 when 3 m from center
             centering_factor = max(1.0 - self.distance_from_center / self.max_distance_from_center, 0.0)
-            # Interpolated from 1 when aligned with the road to 0 when +/- 30 degress of road
+            # Interpolated from 1 when aligned with the road to 0 when +/- 20 degress of road
             angle_factor = max(1.0 - abs(self.angle / np.deg2rad(20)), 0.0)
 
             if not done:
@@ -273,6 +257,7 @@ class CarlaEnvironment():
             if self.timesteps >= 7500:
                 done = True
             elif self.current_waypoint_index >= len(self.route_waypoints) - 2:
+                reward = reward + 100
                 done = True
                 self.fresh_start = True
                 if self.checkpoint_frequency is not None:
@@ -304,12 +289,16 @@ class CarlaEnvironment():
                 for actor in self.actor_list:
                     actor.destroy()
             
-            return [self.image_obs, self.navigation_obs], reward, done, [self.distance_covered, self.center_lane_deviation]
+            if MODE == 1:
+                return [self.image_obs, self.navigation_obs], reward, done, [self.distance_covered, self.center_lane_deviation]
+            else:
+                return self.image_obs, reward, done, [self.distance_covered, self.center_lane_deviation]
+
 
         except:
             self.client.apply_batch([carla.command.DestroyActor(x) for x in self.sensor_list])
             self.client.apply_batch([carla.command.DestroyActor(x) for x in self.actor_list])
-            self.client.apply_batch([carla.command.DestroyActor(x) for x in self.walker_list])
+            #self.client.apply_batch([carla.command.DestroyActor(x) for x in self.walker_list])
             self.sensor_list.clear()
             self.actor_list.clear()
             self.remove_sensors()
@@ -322,59 +311,59 @@ class CarlaEnvironment():
 # Creating and Spawning Pedestrians in our world |
 # -------------------------------------------------
 
-    # Walkers are to be included in the simulation yet!
-    def create_pedestrians(self):
-        try:
+    # # Walkers are to be included in the simulation yet!
+    # def create_pedestrians(self):
+    #     try:
 
-            # Our code for this method has been broken into 3 sections.
+    #         # Our code for this method has been broken into 3 sections.
 
-            # 1. Getting the available spawn points in  our world.
-            # Random Spawn locations for the walker
-            walker_spawn_points = []
-            for i in range(NUMBER_OF_PEDESTRIAN):
-                spawn_point_ = carla.Transform()
-                loc = self.world.get_random_location_from_navigation()
-                if (loc != None):
-                    spawn_point_.location = loc
-                    walker_spawn_points.append(spawn_point_)
+    #         # 1. Getting the available spawn points in  our world.
+    #         # Random Spawn locations for the walker
+    #         walker_spawn_points = []
+    #         for i in range(NUMBER_OF_PEDESTRIAN):
+    #             spawn_point_ = carla.Transform()
+    #             loc = self.world.get_random_location_from_navigation()
+    #             if (loc != None):
+    #                 spawn_point_.location = loc
+    #                 walker_spawn_points.append(spawn_point_)
 
-            # 2. We spawn the walker actor and ai controller
-            # Also set their respective attributes
-            for spawn_point_ in walker_spawn_points:
-                walker_bp = random.choice(
-                    self.blueprint_library.filter('walker.pedestrian.*'))
-                walker_controller_bp = self.blueprint_library.find(
-                    'controller.ai.walker')
-                # Walkers are made visible in the simulation
-                if walker_bp.has_attribute('is_invincible'):
-                    walker_bp.set_attribute('is_invincible', 'false')
-                # They're all walking not running on their recommended speed
-                if walker_bp.has_attribute('speed'):
-                    walker_bp.set_attribute(
-                        'speed', (walker_bp.get_attribute('speed').recommended_values[1]))
-                else:
-                    walker_bp.set_attribute('speed', 0.0)
-                walker = self.world.try_spawn_actor(walker_bp, spawn_point_)
-                if walker is not None:
-                    walker_controller = self.world.spawn_actor(
-                        walker_controller_bp, carla.Transform(), walker)
-                    self.walker_list.append(walker_controller.id)
-                    self.walker_list.append(walker.id)
-            all_actors = self.world.get_actors(self.walker_list)
+    #         # 2. We spawn the walker actor and ai controller
+    #         # Also set their respective attributes
+    #         for spawn_point_ in walker_spawn_points:
+    #             walker_bp = random.choice(
+    #                 self.blueprint_library.filter('walker.pedestrian.*'))
+    #             walker_controller_bp = self.blueprint_library.find(
+    #                 'controller.ai.walker')
+    #             # Walkers are made visible in the simulation
+    #             if walker_bp.has_attribute('is_invincible'):
+    #                 walker_bp.set_attribute('is_invincible', 'false')
+    #             # They're all walking not running on their recommended speed
+    #             if walker_bp.has_attribute('speed'):
+    #                 walker_bp.set_attribute(
+    #                     'speed', (walker_bp.get_attribute('speed').recommended_values[1]))
+    #             else:
+    #                 walker_bp.set_attribute('speed', 0.0)
+    #             walker = self.world.try_spawn_actor(walker_bp, spawn_point_)
+    #             if walker is not None:
+    #                 walker_controller = self.world.spawn_actor(
+    #                     walker_controller_bp, carla.Transform(), walker)
+    #                 self.walker_list.append(walker_controller.id)
+    #                 self.walker_list.append(walker.id)
+    #         all_actors = self.world.get_actors(self.walker_list)
 
-            # set how many pedestrians can cross the road
-            #self.world.set_pedestrians_cross_factor(0.0)
-            # 3. Starting the motion of our pedestrians
-            for i in range(0, len(self.walker_list), 2):
-                # start walker
-                all_actors[i].start()
-            # set walk to random point
-                all_actors[i].go_to_location(
-                    self.world.get_random_location_from_navigation())
+    #         # set how many pedestrians can cross the road
+    #         #self.world.set_pedestrians_cross_factor(0.0)
+    #         # 3. Starting the motion of our pedestrians
+    #         for i in range(0, len(self.walker_list), 2):
+    #             # start walker
+    #             all_actors[i].start()
+    #         # set walk to random point
+    #             all_actors[i].go_to_location(
+    #                 self.world.get_random_location_from_navigation())
 
-        except:
-            self.client.apply_batch(
-                [carla.command.DestroyActor(x) for x in self.walker_list])
+    #     except:
+    #         self.client.apply_batch(
+    #             [carla.command.DestroyActor(x) for x in self.walker_list])
 
 
 # ---------------------------------------------------
@@ -382,42 +371,27 @@ class CarlaEnvironment():
 # ---------------------------------------------------
 
 
-    def set_other_vehicles(self):
-        try:
-            # NPC vehicles generated and set to autopilot
-            # One simple for loop for creating x number of vehicles and spawing them into the world
-            for _ in range(0, NUMBER_OF_VEHICLES):
-                spawn_point = random.choice(self.map.get_spawn_points())
-                bp_vehicle = random.choice(self.blueprint_library.filter('vehicle'))
-                other_vehicle = self.world.try_spawn_actor(
-                    bp_vehicle, spawn_point)
-                if other_vehicle is not None:
-                    other_vehicle.set_autopilot(True)
-                    self.actor_list.append(other_vehicle)
-            print("NPC vehicles have been generated in autopilot mode.")
-        except:
-            self.client.apply_batch(
-                [carla.command.DestroyActor(x) for x in self.actor_list])
+    # def set_other_vehicles(self):
+    #     try:
+    #         # NPC vehicles generated and set to autopilot
+    #         # One simple for loop for creating x number of vehicles and spawing them into the world
+    #         for _ in range(0, NUMBER_OF_VEHICLES):
+    #             spawn_point = random.choice(self.map.get_spawn_points())
+    #             bp_vehicle = random.choice(self.blueprint_library.filter('vehicle'))
+    #             other_vehicle = self.world.try_spawn_actor(
+    #                 bp_vehicle, spawn_point)
+    #             if other_vehicle is not None:
+    #                 other_vehicle.set_autopilot(True)
+    #                 self.actor_list.append(other_vehicle)
+    #         print("NPC vehicles have been generated in autopilot mode.")
+    #     except:
+    #         self.client.apply_batch(
+    #             [carla.command.DestroyActor(x) for x in self.actor_list])
 
 
 # ----------------------------------------------------------------
 # Extra very important methods: their names explain their purpose|
 # ----------------------------------------------------------------
-
-    # Setter for changing the town on the server.
-    def change_town(self, new_town):
-        self.world = self.client.load_world(new_town)
-
-
-    # Getter for fetching the current state of the world that simulator is in.
-    def get_world(self) -> object:
-        return self.world
-
-
-    # Getter for fetching blueprint library of the simulator.
-    def get_blueprint_library(self) -> object:
-        return self.world.get_blueprint_library()
-
 
     # Action space of our vehicle. It can make eight unique actions.
     def angle_diff(self, v0, v1):
@@ -459,27 +433,25 @@ class CarlaEnvironment():
     # It picks a random color for the vehicle everytime this method is called
     def get_vehicle(self, vehicle_name):
         blueprint = self.blueprint_library.filter(vehicle_name)[0]
-        if blueprint.has_attribute('color'):
-            color = random.choice(
-                blueprint.get_attribute('color').recommended_values)
-            blueprint.set_attribute('color', color)
+        # if blueprint.has_attribute('color'):
+        #     color = random.choice(
+        #         blueprint.get_attribute('color').recommended_values)
+        #     blueprint.set_attribute('color', color)
         return blueprint
 
 
     # Spawn the vehicle in the environment
-    def set_vehicle(self, vehicle_bp, spawn_points):
-        # Main vehicle spawned into the env
-        spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
-        self.vehicle = self.world.try_spawn_actor(vehicle_bp, spawn_point)
+    # def set_vehicle(self, vehicle_bp, spawn_points):
+    #     # Main vehicle spawned into the env
+    #     spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
+    #     self.vehicle = self.world.try_spawn_actor(vehicle_bp, spawn_point)
 
 
     # Clean up method
     def remove_sensors(self):
         self.camera_obj = None
         self.collision_obj = None
-        self.lane_invasion_obj = None
         self.env_camera_obj = None
         self.front_camera = None
         self.collision_history = None
-        self.wrong_maneuver = None
 

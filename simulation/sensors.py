@@ -15,7 +15,7 @@ class CameraSensor():
     def __init__(self, vehicle):
         self.sensor_name = SSC_CAMERA
         self.parent = vehicle
-        self.front_camera = list()
+        self.front_camera = []
         world = self.parent.get_world()
         self.sensor = self._set_camera_sensor(world)
         weak_self = weakref.ref(self)
@@ -41,6 +41,8 @@ class CameraSensor():
         placeholder = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
         placeholder1 = placeholder.reshape((image.width, image.height, 4))
         target = placeholder1[:, :, :3]
+        #target2 = np.transpose(target,(2, 0, 1))
+        #print(target.shape)
         self.front_camera.append(target)#/255.0)
 
 
@@ -99,7 +101,7 @@ class CollisionSensor:
     def __init__(self, vehicle) -> None:
         self.sensor_name = 'sensor.other.collision'
         self.parent = vehicle
-        self.collision_data = list()
+        self.collision_data = []
         world = self.parent.get_world()
         self.sensor = self._set_collision_sensor(world)
         weak_self = weakref.ref(self)

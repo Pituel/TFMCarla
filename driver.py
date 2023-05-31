@@ -53,17 +53,17 @@ def runner():
 
     
     #Seeding to reproduce the results 
-    #random.seed(args.seed)
-    #np.random.seed(args.seed)
-    #torch.manual_seed(args.seed)
-    #torch.backends.cudnn.deterministic = args.torch_deterministic
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.backends.cudnn.deterministic = args.torch_deterministic
     
     
     #========================================================================
     #                           INITIALIZING THE NETWORK
     #========================================================================
 
-    n_actions = 7  # Car can only make 7 actions
+    n_actions = 5  # Car can only make 5 actions
 
 
     #========================================================================
@@ -92,7 +92,7 @@ def runner():
             #                           ALGORITHM
             #========================================================================
 
-            agent.train()
+            agent.test()
 
             print("Terminating the run.")
             sys.exit()

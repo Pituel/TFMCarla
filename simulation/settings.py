@@ -10,7 +10,7 @@ Names of the parameters are self-explanatory therefore elimating the use of furt
 
 HOST = "localhost"
 PORT = 2000
-TIMEOUT = 20.0
+TIMEOUT = 30.0
 
 CAR_NAME = 'model3'
 NUMBER_OF_VEHICLES = 0
@@ -20,4 +20,6 @@ VISUAL_DISPLAY = True
 
 RGB_CAMERA = 'sensor.camera.rgb'
 SSC_CAMERA = 'sensor.camera.semantic_segmentation'
+
+
 

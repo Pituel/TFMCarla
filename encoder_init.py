@@ -2,6 +2,7 @@ import sys
 import torch
 from autoencoder.encoder import VariationalEncoder
 import numpy as np
+from parameters import MODE
 
 class EncodeState():
     def __init__(self, latent_dim):
@@ -20,14 +21,19 @@ class EncodeState():
             sys.exit()
     
     def process(self, observation):
-        image_obs = torch.tensor(observation[0], dtype=torch.float).to(self.device)
-        image_obs = image_obs.unsqueeze(0)
-        image_obs = image_obs.permute(0,3,2,1)
-        image_obs = self.conv_encoder(image_obs)
-        navigation_obs = torch.tensor(observation[1], dtype=torch.float).to(self.device)
-        observation = torch.cat((image_obs.view(-1), navigation_obs), -1)
+        if MODE == 1:
+            image_obs = torch.tensor(observation[0]/255, dtype=torch.float).to(self.device)
+            image_obs = image_obs.unsqueeze(0)
+            image_obs = image_obs.permute(0,3,2,1)
+            image_obs = self.conv_encoder(image_obs)
+            navigation_obs = torch.tensor(observation[1], dtype=torch.float).to(self.device)
+            observation = torch.cat((image_obs.view(-1), navigation_obs), -1)
 
-        observation = observation.cpu().detach().numpy()
-        #observation = np.array(observation)
+            observation = observation.cpu().detach().numpy()
+        else:
+            image_obs = torch.tensor(observation/255, dtype=torch.float).to(self.device)
+            image_obs = image_obs.permute(2,1,0)
+            observation = image_obs.cpu().detach().numpy()
+
         
         return observation
